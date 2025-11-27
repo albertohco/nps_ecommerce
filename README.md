@@ -112,7 +112,7 @@ O dashboard abrirá automaticamente em: `http://localhost:8501`
 
 1. Acesse o dashboard Streamlit
 2. Na barra lateral, clique em **"🤖 Rodar Análise de Sentimento (Ollama)"**
-3. Aguarde o processamento (pode levar alguns minutos para 1000 avaliações)
+3. Aguarde o processamento (pode levar alguns minutos para 100 avaliações)
 4. O dashboard será atualizado automaticamente
 
 ### Passo 2: Visualizar o NPS
@@ -144,7 +144,7 @@ Calcula e retorna o NPS com estatísticas detalhadas.
 ```json
 {
   "nps_score": 15.5,
-  "total_avaliacoes": 1000,
+  "total_avaliacoes": 100,
   "promotores": 350,
   "neutros": 300,
   "detratores": 350,
