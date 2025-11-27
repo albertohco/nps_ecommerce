@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 import random
 import os
 
-# Import direto do módulo backend (quando executado do diretório backend)
+# Import direto do módulo backend (agora na raiz)
 from backend import Base, Avaliacao, SQLALCHEMY_DATABASE_URL
 
 # Configuração

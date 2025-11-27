@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -61,20 +62,19 @@ def get_db():
         db.close()
 
 # Função de Integração com Ollama
-def get_ollama_sentiment_score(texto: str, model: str = "phi3") -> int:
+def get_ollama_sentiment_score(texto: str, model: str = "gemma:2b") -> int:
     """
     Integração real com Ollama para análise de sentimento.
     Retorna uma nota de 0 a 10 baseada no sentimento do texto.
+    Usa modelo leve (gemma:2b) para melhor performance.
     """
     try:
-        prompt = f"""Analise o sentimento da seguinte avaliação de e-commerce e retorne APENAS um número inteiro de 0 a 10, onde:
-- 0-6: Avaliação negativa (cliente insatisfeito/detrator)
-- 7-8: Avaliação neutra (cliente passivo)
-- 9-10: Avaliação positiva (cliente promotor)
+        # Prompt simplificado para resposta mais rápida
+        prompt = f"""Avalie esta opinião de 0 a 10 (0=péssimo, 10=excelente). Responda APENAS o número.
 
-Avaliação: "{texto}"
+Opinião: "{texto}"
 
-Responda APENAS com o número (0-10), sem texto adicional."""
+Nota:"""
 
         response = ollama.chat(
             model=model,
@@ -83,7 +83,11 @@ Responda APENAS com o número (0-10), sem texto adicional."""
                     'role': 'user',
                     'content': prompt
                 }
-            ]
+            ],
+            options={
+                'temperature': 0,  # Respostas mais consistentes
+                'num_predict': 5,  # Limitar tokens de resposta
+            }
         )
         
         # Extrair a resposta e fazer parsing
@@ -111,6 +115,15 @@ Responda APENAS com o número (0-10), sem texto adicional."""
 
 # FastAPI App
 app = FastAPI(title="E-commerce NPS API")
+
+# Configurar CORS para permitir requisições do frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Em produção, especifique os domínios permitidos
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 def on_startup():
@@ -164,16 +177,24 @@ def get_nps(db: Session = Depends(get_db)):
     )
 
 @app.post("/api/processar_avaliacoes")
-def processar_avaliacoes(db: Session = Depends(get_db)):
+def processar_avaliacoes(limit: Optional[int] = None, db: Session = Depends(get_db)):
     """
-    Processa todas as avaliações sem nota_llm usando Ollama.
+    Processa avaliações sem nota_llm usando Ollama.
+    
+    Args:
+        limit: Número máximo de avaliações a processar (None = todas)
     """
     # Buscar avaliações sem nota
-    avaliacoes_pendentes = db.query(Avaliacao).filter(
-        Avaliacao.nota_llm.is_(None)
-    ).all()
+    query = db.query(Avaliacao).filter(Avaliacao.nota_llm.is_(None))
     
+    if limit:
+        avaliacoes_pendentes = query.limit(limit).all()
+    else:
+        avaliacoes_pendentes = query.all()
+    
+    total_pendentes_inicial = db.query(Avaliacao).filter(Avaliacao.nota_llm.is_(None)).count()
     total_processadas = 0
+    erros = 0
     
     for avaliacao in avaliacoes_pendentes:
         try:
@@ -189,13 +210,19 @@ def processar_avaliacoes(db: Session = Depends(get_db)):
             
         except Exception as e:
             db.rollback()
+            erros += 1
             print(f"Erro ao processar avaliação {avaliacao.id}: {e}")
             # Continuar com as próximas mesmo se uma falhar
             continue
     
+    total_pendentes_restantes = db.query(Avaliacao).filter(Avaliacao.nota_llm.is_(None)).count()
+    
     return {
         "total_processadas": total_processadas,
-        "total_pendentes": len(avaliacoes_pendentes)
+        "total_pendentes_inicial": total_pendentes_inicial,
+        "total_pendentes_restantes": total_pendentes_restantes,
+        "erros": erros,
+        "concluido": total_pendentes_restantes == 0
     }
 
 @app.get("/")

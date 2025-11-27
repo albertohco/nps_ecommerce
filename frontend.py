@@ -28,23 +28,87 @@ def get_nps():
 def get_avaliacoes():
     """Busca todas as avaliações da API."""
     try:
-        response = requests.get(f"{API_BASE_URL}/api/avaliacoes")
+        response = requests.get(f"{API_BASE_URL}/api/avaliacoes", timeout=10)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        return data
+    except requests.exceptions.ConnectionError as e:
+        st.error(f"❌ Erro de conexão com o backend: {e}")
+        st.info("💡 Certifique-se de que o backend está rodando: `uvicorn backend:app --reload`")
+        return []
+    except requests.exceptions.Timeout:
+        st.error("❌ Timeout ao conectar com o backend")
+        return []
     except Exception as e:
-        st.error(f"Erro ao buscar avaliações: {e}")
+        st.error(f"❌ Erro ao buscar avaliações: {e}")
+        st.error(f"Tipo do erro: {type(e).__name__}")
         return []
 
-def processar_avaliacoes():
-    """Processa avaliações pendentes usando Ollama."""
+def processar_avaliacoes_batch(batch_size: int = 1):
+    """Processa avaliações em lotes com barra de progresso."""
     try:
-        with st.spinner("Processando avaliações com Ollama... Isso pode levar alguns minutos."):
-            response = requests.post(f"{API_BASE_URL}/api/processar_avaliacoes")
+        # Primeiro, verificar quantas avaliações pendentes existem
+        avaliacoes = get_avaliacoes()
+        if not avaliacoes:
+            st.error("Nenhuma avaliação encontrada")
+            return False
+        
+        df = pd.DataFrame(avaliacoes)
+        total_pendentes = len(df[df['nota_llm'].isna()])
+        
+        if total_pendentes == 0:
+            st.success("✅ Todas as avaliações já foram processadas!")
+            return True
+        
+        st.info(f"📊 Total de avaliações pendentes: {total_pendentes}")
+        
+        # Criar barra de progresso e status
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        processadas = 0
+        parar = False
+        
+        # Criar botão de parar
+        col1, col2 = st.columns([3, 1])
+        with col2:
+            if st.button("⏹️ Parar Processamento", type="secondary", key="stop_btn"):
+                parar = True
+        
+        while processadas < total_pendentes and not parar:
+            # Processar um lote
+            response = requests.post(
+                f"{API_BASE_URL}/api/processar_avaliacoes",
+                params={"limit": batch_size},
+                timeout=120
+            )
             response.raise_for_status()
-            return response.json()
+            resultado = response.json()
+            
+            processadas += resultado['total_processadas']
+            pendentes_restantes = resultado['total_pendentes_restantes']
+            
+            # Atualizar progresso
+            progresso = min(processadas / total_pendentes, 1.0)
+            progress_bar.progress(progresso)
+            status_text.text(f"⚡ Processando... {processadas}/{total_pendentes} | Restantes: {pendentes_restantes}")
+            
+            # Verificar se terminou
+            if resultado['concluido']:
+                break
+        
+        if parar:
+            st.warning(f"⚠️ Processamento interrompido! Processadas: {processadas}/{total_pendentes}")
+            return False
+        else:
+            progress_bar.progress(1.0)
+            status_text.text(f"✅ Concluído! Total processadas: {processadas}")
+            st.success(f"🎉 Análise de sentimento concluída! {processadas} avaliações processadas.")
+            return True
+            
     except Exception as e:
-        st.error(f"Erro ao processar avaliações: {e}")
-        return None
+        st.error(f"❌ Erro ao processar avaliações: {e}")
+        return False
 
 # CSS customizado para melhorar a aparência
 st.markdown("""
@@ -68,11 +132,10 @@ with st.sidebar:
     st.markdown("---")
     
     if st.button("🤖 Rodar Análise de Sentimento (Ollama)", type="primary", use_container_width=True):
-        resultado = processar_avaliacoes()
-        if resultado:
-            st.success(f"✅ Processadas: {resultado['total_processadas']} avaliações")
-            st.info(f"Total pendentes: {resultado['total_pendentes']}")
-            st.rerun()
+        with st.spinner("Iniciando processamento..."):
+            sucesso = processar_avaliacoes_batch(batch_size=1)
+            if sucesso:
+                st.rerun()
     
     st.markdown("---")
     st.markdown("### 📝 Sobre o NPS")
@@ -100,6 +163,13 @@ st.markdown("---")
 # Buscar dados
 nps_data = get_nps()
 avaliacoes_data = get_avaliacoes()
+
+# Debug: mostrar quantas avaliações foram carregadas
+if avaliacoes_data:
+    st.sidebar.success(f"✅ {len(avaliacoes_data)} avaliações carregadas")
+else:
+    st.sidebar.warning("⚠️ Nenhuma avaliação carregada")
+
 
 if nps_data and nps_data['total_avaliacoes'] > 0:
     # Métricas principais
@@ -203,15 +273,33 @@ if nps_data and nps_data['total_avaliacoes'] > 0:
         st.plotly_chart(fig_bar, use_container_width=True)
     
     st.markdown("---")
-    
+
+# Sempre mostrar a seção de avaliações, independente de terem sido processadas
+if avaliacoes_data:
     # Tabela de Avaliações
     st.subheader("📋 Avaliações Detalhadas")
     
-    if avaliacoes_data:
-        # Filtrar apenas avaliações processadas
-        df = pd.DataFrame(avaliacoes_data)
-        df_processadas = df[df['nota_llm'].notna()].copy()
-        
+    df = pd.DataFrame(avaliacoes_data)
+    
+    # Separar processadas e pendentes
+    df_processadas = df[df['nota_llm'].notna()].copy()
+    df_pendentes = df[df['nota_llm'].isna()].copy()
+    
+    # Mostrar estatísticas gerais
+    col_info1, col_info2, col_info3 = st.columns(3)
+    with col_info1:
+        st.metric("📊 Total de Avaliações", len(df))
+    with col_info2:
+        st.metric("✅ Processadas", len(df_processadas))
+    with col_info3:
+        st.metric("⏳ Pendentes", len(df_pendentes))
+    
+    st.markdown("---")
+    
+    # Tabs para separar processadas e pendentes
+    tab1, tab2 = st.tabs(["✅ Avaliações Processadas", "⏳ Avaliações Pendentes"])
+    
+    with tab1:
         if not df_processadas.empty:
             # Adicionar categoria
             def categorizar(nota):
@@ -260,7 +348,7 @@ if nps_data and nps_data['total_avaliacoes'] > 0:
             
             # Estatísticas adicionais
             st.markdown("---")
-            st.subheader("📈 Estatísticas Adicionais")
+            st.subheader("📈 Estatísticas das Avaliações Processadas")
             
             col_stat1, col_stat2, col_stat3 = st.columns(3)
             
@@ -269,20 +357,43 @@ if nps_data and nps_data['total_avaliacoes'] > 0:
                 st.metric("Nota Média", f"{media_nota:.2f}")
             
             with col_stat2:
-                total_processadas = len(df_processadas)
-                total_avaliacoes = len(df)
-                st.metric("Avaliações Processadas", f"{total_processadas}/{total_avaliacoes}")
+                nota_max = df_processadas['nota_llm'].max()
+                st.metric("Nota Máxima", f"{nota_max:.0f}")
             
             with col_stat3:
-                pendentes = total_avaliacoes - total_processadas
-                st.metric("Pendentes de Análise", pendentes)
+                nota_min = df_processadas['nota_llm'].min()
+                st.metric("Nota Mínima", f"{nota_min:.0f}")
         
         else:
-            st.warning("⚠️ Nenhuma avaliação foi processada ainda. Clique no botão 'Rodar Análise de Sentimento' na barra lateral.")
+            st.info("⏳ Nenhuma avaliação processada ainda. Clique no botão '🤖 Rodar Análise de Sentimento' na barra lateral.")
     
+    with tab2:
+        if not df_pendentes.empty:
+            st.warning(f"⚠️ Existem **{len(df_pendentes)} avaliações** aguardando análise de sentimento.")
+            st.info("💡 Clique no botão '🤖 Rodar Análise de Sentimento (Ollama)' na barra lateral para processar.")
+            
+            # Mostrar preview das pendentes
+            num_preview = st.slider("Número de avaliações pendentes a exibir:", 5, 50, 20, key="pending_slider")
+            
+            df_pendentes_display = df_pendentes[['id', 'texto_avaliacao']].head(num_preview)
+            df_pendentes_display.columns = ['ID', 'Avaliação']
+            
+            st.dataframe(
+                df_pendentes_display,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "ID": st.column_config.NumberColumn("ID", width="small"),
+                    "Avaliação": st.column_config.TextColumn("Avaliação", width="large")
+                }
+            )
+        else:
+            st.success("✅ Todas as avaliações foram processadas!")
+
 else:
-    st.warning("⚠️ Nenhum dado disponível. Execute o script fake_data.py para popular o banco de dados.")
-    st.info("💡 Depois, clique no botão 'Rodar Análise de Sentimento' para processar as avaliações.")
+    st.warning("⚠️ Nenhuma avaliação encontrada no banco de dados.")
+    st.info("💡 Execute o script `python fake_data.py` para popular o banco de dados.")
+
 
 # Footer
 st.markdown("---")

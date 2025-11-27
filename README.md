@@ -9,17 +9,15 @@ Sistema completo de análise de NPS (Net Promoter Score) para e-commerce utiliza
 - **IA**: Ollama (análise de sentimento com LLM)
 - **Visualização**: Plotly
 
-## 📁 Estrutura do Projeto
+## 📁 Estrutura do Projeto (Simplificada)
 
 ```
 ecommerce_nps/
 ├── data/
 │   └── ecommerce_nps.db          # Banco de dados SQLite (gerado automaticamente)
-├── backend/
-│   ├── backend.py                # API FastAPI com integração Ollama
-│   └── fake_data.py              # Script para gerar 1000 avaliações fake
-├── frontend/
-│   └── frontend.py               # Dashboard Streamlit
+├── backend.py                    # API FastAPI com integração Ollama
+├── fake_data.py                  # Script para gerar 1000 avaliações fake
+├── frontend.py                   # Dashboard Streamlit
 ├── requirements.txt              # Dependências do projeto
 └── README.md                     # Este arquivo
 ```
@@ -63,22 +61,21 @@ O Ollama rodará em `http://localhost:11434`
 Em outro terminal, execute:
 
 ```bash
-ollama pull phi3
+ollama pull gemma:2b
 ```
 
-**Modelos alternativos** (caso queira testar outros):
-- `ollama pull gemma:2b` (mais leve)
-- `ollama pull llama2` (mais robusto)
-- `ollama pull mistral` (boa performance)
+> **Nota**: O modelo `gemma:2b` é recomendado por ser mais rápido (~2-3x) e menor (~1.7GB), ideal para análise de sentimento.
 
-> **Nota**: O modelo `phi3` é recomendado por ter um bom equilíbrio entre tamanho (~2.3GB) e qualidade de análise.
+**Modelos alternativos** (caso queira testar outros):
+- `ollama pull phi3` (mais preciso, mas mais lento)
+- `ollama pull llama2` (mais robusto, porém pesado)
+- `ollama pull mistral` (boa alternativa rápida)
 
 ### 3. Popular o Banco de Dados
 
 Execute o script para gerar 1000 avaliações fake:
 
 ```bash
-cd backend
 python fake_data.py
 ```
 
@@ -91,10 +88,7 @@ Você verá uma mensagem de confirmação:
 
 ### 1. Iniciar o Backend (FastAPI)
 
-Em um terminal:
-
 ```bash
-cd backend
 uvicorn backend:app --reload
 ```
 
@@ -107,7 +101,6 @@ Documentação interativa: `http://localhost:8000/docs`
 Em outro terminal:
 
 ```bash
-cd frontend
 streamlit run frontend.py
 ```
 
@@ -151,7 +144,7 @@ Calcula e retorna o NPS com estatísticas detalhadas.
 ```json
 {
   "nps_score": 15.5,
-  "total_avaliacoes": 100,
+  "total_avaliacoes": 1000,
   "promotores": 350,
   "neutros": 300,
   "detratores": 350,
@@ -167,8 +160,8 @@ Processa todas as avaliações pendentes usando Ollama.
 **Resposta:**
 ```json
 {
-  "total_processadas": 100,
-  "total_pendentes": 100
+  "total_processadas": 1000,
+  "total_pendentes": 1000
 }
 ```
 
@@ -205,21 +198,20 @@ ollama serve
 
 **Solução**: Baixe o modelo:
 ```bash
-ollama pull phi3
+ollama pull gemma:2b
 ```
 
 ### Processamento muito lento
 
 **Soluções**:
-1. Use um modelo mais leve: `ollama pull gemma:2b`
-2. Processe em lotes menores (modifique o código para processar 100 por vez)
+1. Certifique-se de estar usando o modelo otimizado `gemma:2b` (mais rápido)
+2. Se ainda estiver lento, tente um modelo ainda menor (não recomendado para qualidade)
 3. Use uma GPU se disponível (Ollama detecta automaticamente)
 
 ### Banco de dados não encontrado
 
 **Solução**: Execute o script de população:
 ```bash
-cd backend
 python fake_data.py
 ```
 
@@ -227,25 +219,29 @@ python fake_data.py
 
 ### Trocar o Modelo de IA
 
-No arquivo `backend/backend.py`, linha 66, altere:
-
-```python
-def get_ollama_sentiment_score(texto: str, model: str = "phi3"):
-```
-
-Para:
+No arquivo `backend.py`, linha 65, altere:
 
 ```python
 def get_ollama_sentiment_score(texto: str, model: str = "gemma:2b"):
 ```
 
+Para outro modelo de sua preferência:
+
+```python
+def get_ollama_sentiment_score(texto: str, model: str = "phi3"):  # Mais preciso
+# ou
+def get_ollama_sentiment_score(texto: str, model: str = "llama2"):  # Mais robusto
+```
+
+**Lembre-se**: Modelos maiores são mais precisos, mas mais lentos.
+
 ### Ajustar o Prompt de Análise
 
-Edite o prompt na função `get_ollama_sentiment_score()` em `backend/backend.py` (linhas 72-80) para personalizar a análise.
+Edite o prompt na função `get_ollama_sentiment_score()` em `backend.py` para personalizar a análise.
 
 ### Adicionar Mais Avaliações
 
-No arquivo `backend/fake_data.py`, altere a linha final:
+No arquivo `fake_data.py`, altere a linha final:
 
 ```python
 popular_banco(1000)  # Altere para o número desejado
