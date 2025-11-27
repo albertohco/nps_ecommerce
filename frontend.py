@@ -60,54 +60,53 @@ def processar_avaliacoes_batch(batch_size: int = 1):
             st.success("✅ Todas as avaliações já foram processadas!")
             return True
         
-        st.info(f"📊 Total de avaliações pendentes: {total_pendentes}")
+        st.info(f"📊 Iniciando processamento de {total_pendentes} avaliações...")
+        st.warning("⚠️ Para interromper, recarregue a página (F5)")
         
         # Criar barra de progresso e status
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         processadas = 0
-        parar = False
         
-        # Criar botão de parar
-        col1, col2 = st.columns([3, 1])
-        with col2:
-            if st.button("⏹️ Parar Processamento", type="secondary", key="stop_btn"):
-                parar = True
+        # Loop de processamento
+        while processadas < total_pendentes:
+            try:
+                # Processar um lote
+                response = requests.post(
+                    f"{API_BASE_URL}/api/processar_avaliacoes",
+                    params={"limit": batch_size},
+                    timeout=120
+                )
+                response.raise_for_status()
+                resultado = response.json()
+                
+                processadas += resultado['total_processadas']
+                pendentes_restantes = resultado['total_pendentes_restantes']
+                
+                # Atualizar progresso
+                progresso = min(processadas / total_pendentes, 1.0)
+                progress_bar.progress(progresso)
+                status_text.text(f"⚡ Processando... {processadas}/{total_pendentes} concluídas | {pendentes_restantes} restantes")
+                
+                # Verificar se terminou
+                if resultado['concluido'] or pendentes_restantes == 0:
+                    break
+                    
+            except Exception as e:
+                st.error(f"❌ Erro ao processar lote: {e}")
+                st.info(f"✅ Processadas até o momento: {processadas}")
+                return False
         
-        while processadas < total_pendentes and not parar:
-            # Processar um lote
-            response = requests.post(
-                f"{API_BASE_URL}/api/processar_avaliacoes",
-                params={"limit": batch_size},
-                timeout=120
-            )
-            response.raise_for_status()
-            resultado = response.json()
-            
-            processadas += resultado['total_processadas']
-            pendentes_restantes = resultado['total_pendentes_restantes']
-            
-            # Atualizar progresso
-            progresso = min(processadas / total_pendentes, 1.0)
-            progress_bar.progress(progresso)
-            status_text.text(f"⚡ Processando... {processadas}/{total_pendentes} | Restantes: {pendentes_restantes}")
-            
-            # Verificar se terminou
-            if resultado['concluido']:
-                break
-        
-        if parar:
-            st.warning(f"⚠️ Processamento interrompido! Processadas: {processadas}/{total_pendentes}")
-            return False
-        else:
-            progress_bar.progress(1.0)
-            status_text.text(f"✅ Concluído! Total processadas: {processadas}")
-            st.success(f"🎉 Análise de sentimento concluída! {processadas} avaliações processadas.")
-            return True
+        progress_bar.progress(1.0)
+        status_text.text(f"✅ Processamento concluído!")
+        st.success(f"🎉 {processadas} avaliações analisadas com sucesso!")
+        return True
             
     except Exception as e:
         st.error(f"❌ Erro ao processar avaliações: {e}")
+        import traceback
+        st.code(traceback.format_exc())
         return False
 
 # CSS customizado para melhorar a aparência
@@ -131,20 +130,20 @@ with st.sidebar:
     st.title("⚙️ Controles")
     st.markdown("---")
     
-    if st.button("🤖 Rodar Análise de Sentimento (Ollama)", type="primary", use_container_width=True):
-        with st.spinner("Iniciando processamento..."):
-            sucesso = processar_avaliacoes_batch(batch_size=1)
-            if sucesso:
-                st.rerun()
+    if st.button("🤖 Rodar Análise de Sentimento (Ollama)", type="primary", width="stretch"):
+        with st.spinner("Processando..."):
+            resultado = processar_avaliacoes_batch(batch_size=1)
+            # Sempre atualizar a página após processamento (completo ou parado)
+            st.rerun()
     
     st.markdown("---")
     st.markdown("### 📝 Sobre o NPS")
     st.markdown("""
     **Net Promoter Score (NPS)**
     
-    - 🟢 **Promotores** (9-10): Clientes entusiastas
-    - 🟡 **Neutros** (7-8): Clientes satisfeitos mas não entusiastas
-    - 🔴 **Detratores** (0-6): Clientes insatisfeitos
+    - 🟢 **Promotores** (8-10): Clientes entusiastas
+    - 🟡 **Neutros** (5-7): Clientes satisfeitos mas não entusiastas
+    - 🔴 **Detratores** (0-4): Clientes insatisfeitos
     
     **Fórmula:**  
     NPS = % Promotores - % Detratores
@@ -245,7 +244,7 @@ if nps_data and nps_data['total_avaliacoes'] > 0:
             height=400
         )
         
-        st.plotly_chart(fig_pie, use_container_width=True)
+        st.plotly_chart(fig_pie, width="stretch")
     
     with col_chart2:
         st.subheader("📊 Comparativo de Categorias")
@@ -270,7 +269,7 @@ if nps_data and nps_data['total_avaliacoes'] > 0:
             height=400
         )
         
-        st.plotly_chart(fig_bar, use_container_width=True)
+        st.plotly_chart(fig_bar, width="stretch")
     
     st.markdown("---")
 
@@ -303,9 +302,9 @@ if avaliacoes_data:
         if not df_processadas.empty:
             # Adicionar categoria
             def categorizar(nota):
-                if nota >= 9:
+                if nota >= 8:
                     return "🟢 Promotor"
-                elif nota >= 7:
+                elif nota >= 5:
                     return "🟡 Neutro"
                 else:
                     return "🔴 Detrator"
@@ -328,7 +327,7 @@ if avaliacoes_data:
                 )
             
             with col_filter2:
-                num_rows = st.slider("Número de linhas a exibir:", 10, 100, 50)
+                num_rows = st.slider("Número de linhas a exibir:", 10, 200, 50)
             
             # Aplicar filtro
             df_filtered = df_display[df_display['Categoria'].isin(categoria_filter)].head(num_rows)
@@ -336,7 +335,7 @@ if avaliacoes_data:
             # Exibir tabela
             st.dataframe(
                 df_filtered,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "id": st.column_config.NumberColumn("ID", width="small"),
@@ -373,14 +372,14 @@ if avaliacoes_data:
             st.info("💡 Clique no botão '🤖 Rodar Análise de Sentimento (Ollama)' na barra lateral para processar.")
             
             # Mostrar preview das pendentes
-            num_preview = st.slider("Número de avaliações pendentes a exibir:", 5, 50, 20, key="pending_slider")
+            num_preview = st.slider("Número de avaliações pendentes a exibir:", 10, 200, 50, key="pending_slider")
             
             df_pendentes_display = df_pendentes[['id', 'texto_avaliacao']].head(num_preview)
             df_pendentes_display.columns = ['ID', 'Avaliação']
             
             st.dataframe(
                 df_pendentes_display,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "ID": st.column_config.NumberColumn("ID", width="small"),

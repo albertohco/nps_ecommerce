@@ -69,12 +69,17 @@ def get_ollama_sentiment_score(texto: str, model: str = "gemma:2b") -> int:
     Usa modelo leve (gemma:2b) para melhor performance.
     """
     try:
-        # Prompt simplificado para resposta mais rápida
-        prompt = f"""Avalie esta opinião de 0 a 10 (0=péssimo, 10=excelente). Responda APENAS o número.
+        # Prompt otimizado para melhor análise mantendo performance
+        prompt = f"""Analise o sentimento desta avaliação de e-commerce e dê uma nota de 0 a 10:
 
-Opinião: "{texto}"
+Critérios:
+- 0-4: Muito insatisfeito (problemas graves, não recomenda)
+- 5-7: Neutro/Satisfeito (atende expectativas básicas)
+- 8-10: Muito satisfeito (excelente, recomenda fortemente)
 
-Nota:"""
+Avaliação: "{texto}"
+
+Responda APENAS com um número de 0 a 10:"""
 
         response = ollama.chat(
             model=model,
@@ -154,9 +159,9 @@ def get_nps(db: Session = Depends(get_db)):
         )
     
     total = len(avaliacoes)
-    promotores = sum(1 for a in avaliacoes if a.nota_llm >= 9)
-    neutros = sum(1 for a in avaliacoes if 7 <= a.nota_llm <= 8)
-    detratores = sum(1 for a in avaliacoes if a.nota_llm <= 6)
+    promotores = sum(1 for a in avaliacoes if a.nota_llm >= 8)
+    neutros = sum(1 for a in avaliacoes if 5 <= a.nota_llm <= 7)
+    detratores = sum(1 for a in avaliacoes if a.nota_llm <= 4)
     
     # Cálculo do NPS: (% Promotores - % Detratores)
     percentual_promotores = (promotores / total) * 100
