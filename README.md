@@ -73,7 +73,7 @@ ollama pull gemma:2b
 
 ### 3. Popular o Banco de Dados
 
-Execute o script para gerar 1000 avaliações fake:
+Execute o script para gerar 100 avaliações fake:
 
 ```bash
 python fake_data.py
@@ -81,7 +81,7 @@ python fake_data.py
 
 Você verá uma mensagem de confirmação:
 ```
-✅ Banco populado com sucesso! Total: 1000 avaliações.
+✅ Banco populado com sucesso! Total: 100 avaliações.
 ```
 
 ## ▶️ Executando o Projeto
@@ -160,8 +160,8 @@ Processa todas as avaliações pendentes usando Ollama.
 **Resposta:**
 ```json
 {
-  "total_processadas": 1000,
-  "total_pendentes": 1000
+  "total_processadas": 100,
+  "total_pendentes": 100
 }
 ```
 
@@ -244,7 +244,7 @@ Edite o prompt na função `get_ollama_sentiment_score()` em `backend.py` para p
 No arquivo `fake_data.py`, altere a linha final:
 
 ```python
-popular_banco(1000)  # Altere para o número desejado
+popular_banco(100)  # Altere para o número desejado
 ```
 
 ## 📝 Licença
