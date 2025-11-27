@@ -261,4 +261,4 @@ Para dúvidas ou problemas, abra uma issue no repositório do projeto.
 
 ---
 
-**Desenvolvido com ❤️ usando FastAPI, Streamlit e Ollama**
+**Desenvolvido com ❤️ por https://github.com/albertohco usando FastAPI, Streamlit e Ollama**

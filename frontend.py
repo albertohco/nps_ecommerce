@@ -399,7 +399,7 @@ st.markdown("---")
 st.markdown(
     """
     <div style='text-align: center; color: gray;'>
-    <p>Dashboard NPS E-commerce | Powered by FastAPI + Streamlit + Ollama 🚀</p>
+    <p>Dashboard NPS E-commerce | https://github.com/albertohco | Powered by FastAPI + Streamlit + Ollama </p>
     </div>
     """,
     unsafe_allow_html=True
