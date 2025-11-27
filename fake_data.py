@@ -54,7 +54,7 @@ def gerar_avaliacao_aleatoria():
     """Gera uma avaliação aleatória combinando diferentes tipos."""
     tipo = random.choices(
         ['positiva', 'neutra', 'negativa'],
-        weights=[0.4, 0.3, 0.3]  # 40% positivas, 30% neutras, 30% negativas
+        weights=[0.5, 0.3, 0.2]  # 50% positivas, 30% neutras, 20% negativas
     )[0]
     
     if tipo == 'positiva':
